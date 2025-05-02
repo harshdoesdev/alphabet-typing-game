@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kids' Typing Game</title>
+  <style>
+    body {
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+      background-color: #f0f8ff;
+      margin: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    h1 {
+      color: #ff6b6b;
+      margin-bottom: 20px;
+    }
+
+    .instructions {
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+
+    .game-container {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-bottom: 30px;
+    }
+
+    .box {
+      width: 200px;
+      height: 200px;
+      border: 5px solid;
+      border-radius: 15px;
+      font-size: 120px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #target-box {
+      border-color: #4ecdc4;
+      background-color: #f7fff7;
+      color: #ff6b6b;
+    }
+
+    #typed-box {
+      border-color: #ff6b6b;
+      background-color: #fff0f0;
+      color: #4ecdc4;
+    }
+
+    .score-container {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 20px;
+    }
+
+    .score {
+      font-size: 24px;
+      font-weight: bold;
+      padding: 10px 20px;
+      border-radius: 10px;
+    }
+
+    #correct {
+      background-color: #a8e6cf;
+      color: #2d6a4f;
+    }
+
+    #wrong {
+      background-color: #ffafcc;
+      color: #c9184a;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 18px;
+      font-weight: bold;
+      background-color: #ffba08;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background-color: #faa307;
+      transform: scale(1.05);
+    }
+
+    canvas#confetti-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <h1>Alphabet Typing Game</h1>
+
+  <div class="instructions">Look at the letter on the left and type it on your keyboard!</div>
+
+  <div class="game-container">
+    <div class="box" id="target-box">A</div>
+    <div class="box" id="typed-box"></div>
+  </div>
+
+  <div class="score-container">
+    <div class="score" id="correct">Correct: 0</div>
+    <div class="score" id="wrong">Wrong: 0</div>
+  </div>
+
+  <button id="next-btn">Next Letter</button>
+
+  <!-- Confetti Canvas -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById('confetti-canvas');
+    const ctx = canvas.getContext('2d');
+    let confettiParticles = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function createConfetti() {
+      for (let i = 0; i < 100; i++) {
+        confettiParticles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * -canvas.height,
+          r: Math.random() * 6 + 4,
+          d: Math.random() * 10 + 5,
+          color: `hsl(${Math.random() * 360}, 100%, 70%)`,
+          tilt: Math.random() * 10 - 10,
+          tiltAngle: 0,
+          tiltAngleIncrement: Math.random() * 0.08 + 0.04
+        });
+      }
+    }
+
+    function drawConfetti() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      confettiParticles.forEach(p => {
+        ctx.beginPath();
+        ctx.lineWidth = p.r;
+        ctx.strokeStyle = p.color;
+        ctx.moveTo(p.x + p.tilt + p.r / 2, p.y);
+        ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r / 2);
+        ctx.stroke();
+      });
+      updateConfetti();
+    }
+
+    function updateConfetti() {
+      confettiParticles.forEach((p, i) => {
+        p.y += Math.cos(p.d) + 3;
+        p.tiltAngle += p.tiltAngleIncrement;
+        p.tilt = Math.sin(p.tiltAngle) * 15;
+
+        if (p.y > canvas.height) {
+          confettiParticles.splice(i, 1);
+        }
+      });
+    }
+
+    function runConfettiAnimation() {
+      createConfetti();
+      let animationFrame;
+      function animate() {
+        drawConfetti();
+        if (confettiParticles.length > 0) {
+          animationFrame = requestAnimationFrame(animate);
+        }
+      }
+      animate();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const targetBox = document.getElementById('target-box');
+      const typedBox = document.getElementById('typed-box');
+      const correctScore = document.getElementById('correct');
+      const wrongScore = document.getElementById('wrong');
+      const nextBtn = document.getElementById('next-btn');
+
+      let currentTarget = 'A';
+      let correctCount = 0;
+      let wrongCount = 0;
+      let waitingForTyping = true;
+
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+      function playTone(freq, duration, type) {
+        const oscillator = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        oscillator.connect(gain);
+        gain.connect(audioCtx.destination);
+        oscillator.type = type;
+        oscillator.frequency.value = freq;
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + duration);
+      }
+
+      function playCorrectSound() {
+        const notes = [523, 659, 784]; // C5, E5, G5 - major chord arpeggio
+        notes.forEach((freq, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime + i * 0.15);
+          gain.gain.setValueAtTime(0.2, audioCtx.currentTime + i * 0.15);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(audioCtx.currentTime + i * 0.15);
+          osc.stop(audioCtx.currentTime + i * 0.15 + 0.2);
+        });
+      }
+      
+      function playWrongSound() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(180, audioCtx.currentTime + 0.5);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.5);
+      }
+
+      function getRandomAlphabet() {
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        return letters.charAt(Math.floor(Math.random() * letters.length));
+      }
+
+      function setNewTarget() {
+        currentTarget = getRandomAlphabet();
+        targetBox.textContent = currentTarget;
+        typedBox.textContent = '';
+        waitingForTyping = true;
+      }
+
+      document.addEventListener('keypress', (event) => {
+        if (!waitingForTyping) return;
+        const key = event.key.toUpperCase();
+        if (/^[A-Z]$/.test(key)) {
+          typedBox.textContent = key;
+          waitingForTyping = false;
+          if (key === currentTarget) {
+            correctCount++;
+            correctScore.textContent = `Correct: ${correctCount}`;
+            typedBox.style.color = '#4ecdc4';
+            playCorrectSound();
+            runConfettiAnimation();
+          } else {
+            wrongCount++;
+            wrongScore.textContent = `Wrong: ${wrongCount}`;
+            typedBox.style.color = '#ff6b6b';
+            playWrongSound();
+          }
+        }
+      });
+
+      nextBtn.addEventListener('click', () => {
+        setNewTarget();
+      });
+
+      setNewTarget();
+    });
+  </script>
+</body>
+</html>
